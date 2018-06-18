@@ -7,6 +7,7 @@ var path = require('path');
 var utilities = require('./utilities');
 var TaskQueue = require('./taskQueue');
 var downloadQueue = new TaskQueue(2);
+var async = require('async');
 
 let spidering = new Map();
 
@@ -78,20 +79,31 @@ function spiderLinks(currentUrl, body, nesting, callback){
 	});
 }
 
-function download(url, filename, callback){
+function download(url, filename, callback){	
 	console.log('Downloading ' + url);
-	request(url, function(err, response, body){
-		if(err) {
-			return callback(err);
-		} 
-		saveFile(filename, body, function(err){
-			console.log('Downloaded and saved: ' + filename);
-			if(err) {
+
+	var body;
+
+	async.series([
+		function(callback){
+			request(url, function(err, response, resBody){
+				if(err){
+					return callback(err);
+				}
+				body = resBody;
+				callback();
+			});
+			},
+			mkdirp.bind(null, path.dirname(filename)), function(callback){
+				fs.writeFile(filename, body, callback);
+			}
+		], function(err){
+			console.log('Downloaded and saved: ' + url);
+			if(err){
 				return callback(err);
-			} 
+			}
 			callback(null, body);
-		});
-	});
+		}); //async.series
 }
 
 function saveFile(filename, contents, callback){
